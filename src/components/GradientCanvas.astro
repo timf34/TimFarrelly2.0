@@ -13,10 +13,23 @@ const {
 } = Astro.props;
 ---
 
-<div id="gradient-container" class="gradient-container"></div>
+<div
+  id="gradient-container"
+  class="gradient-container"
+  data-dark={darkMode}
+  data-palettes={palettes ? JSON.stringify(palettes) : undefined}
+></div>
 
-<script type="module" client:load define:vars={{ darkMode, palettes }}>
+<script>
+  // @ts-nocheck – runtime script, no TS type checking needed
   import * as THREE from 'three';
+
+  // Read props passed via data-* attributes
+  const container = document.getElementById('gradient-container');
+  const palettesFromProps = container.dataset.palettes
+    ? JSON.parse(container.dataset.palettes)
+    : null;
+  const darkModeEnabled = container.dataset.dark === 'true';
 
   // Default gradient configurations
   const defaultGradients = {
@@ -325,11 +338,10 @@ const {
   }
 
   // Initialize the gradient with optional props
-  const container = document.getElementById('gradient-container');
   const gradient = new GradientLightField(
     container,
-    palettes ?? defaultGradients,
-    darkMode
+    palettesFromProps || defaultGradients,
+    darkModeEnabled
   );
   
   // Expose API to window for manual control if needed
