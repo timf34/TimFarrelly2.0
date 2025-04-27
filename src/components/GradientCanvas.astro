@@ -1,0 +1,351 @@
+---
+// Optional props for future expansion
+interface Props {
+  /** set false to disable dark-mode switching */
+  darkMode?: boolean;
+  /** override the default palettes */
+  palettes?: Record<'light'|'dark', { position: number; color: string }[]>;
+}
+
+const { 
+  darkMode = true,
+  palettes
+} = Astro.props;
+---
+
+<div id="gradient-container" class="gradient-container"></div>
+
+<script type="module" client:load define:vars={{ darkMode, palettes }}>
+  import * as THREE from 'three';
+
+  // Default gradient configurations
+  const defaultGradients = {
+    light: [
+      { position: 0.0, color: '#F5E48E' },
+      { position: 0.3, color: '#FFCB8E' },
+      { position: 0.6, color: '#FFAA88' },
+      { position: 0.8, color: '#FF88AA' }
+    ],
+    dark: [
+      { position: 0.0, color: '#2D2836' },
+      { position: 0.3, color: '#3C3544' },
+      { position: 0.6, color: '#4A4252' },
+      { position: 0.8, color: '#584E60' }
+    ]
+  };
+
+  class GradientLightField {
+    constructor(element, gradients = defaultGradients, enableDarkMode = true) {
+      this.element = element;
+      this.gradients = gradients;
+      this.enableDarkMode = enableDarkMode;
+      
+      this.options = {
+        container: element,
+        gradientColors: this.gradients.light,
+        aspectRatio: 2.0,
+        verticalStretch: 0.4,
+        horizontalWidth: 0.8,
+        feather: 0.6,
+        intensity: 1.1
+      };
+
+      this.scene = null;
+      this.camera = null;
+      this.renderer = null;
+      this.mesh = null;
+      this.material = null;
+      this.isDarkMode = false;
+      this.resizeHandler = null;
+      this.darkModeHandler = null;
+      this.darkModeMediaQuery = null;
+      this.isDisposed = false;
+      
+      this.init();
+    }
+
+    init() {
+      this.scene = new THREE.Scene();
+      
+      const aspect = window.innerWidth / window.innerHeight;
+      this.camera = new THREE.OrthographicCamera(-aspect, aspect, 1, -1, 0.1, 100);
+      this.camera.position.z = 1;
+      
+      this.renderer = new THREE.WebGLRenderer({ 
+        antialias: true,
+        alpha: true 
+      });
+      this.renderer.setPixelRatio(window.devicePixelRatio); // High DPI support
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      this.renderer.setClearColor(0x000000, 0);
+      this.options.container.appendChild(this.renderer.domElement);
+      
+      this.createMaterial();
+      
+      const geometry = new THREE.PlaneGeometry(2 * aspect, 2);
+      this.mesh = new THREE.Mesh(geometry, this.material);
+      this.scene.add(this.mesh);
+      
+      // Event listeners
+      this.resizeHandler = this.onResize.bind(this);
+      window.addEventListener('resize', this.resizeHandler);
+      
+      if (this.enableDarkMode) {
+        this.setupDarkModeListener();
+      }
+      
+      // Start animation loop
+      this.renderer.setAnimationLoop(this.render.bind(this));
+    }
+    
+    createMaterial() {
+      const gradientStopsArray = new Float32Array(this.options.gradientColors.length * 4);
+      this.updateGradientStops(this.options.gradientColors, gradientStopsArray);
+      
+      const numStops = this.options.gradientColors.length;
+      
+      const vertexShader = `
+        varying vec2 vUv;
+        
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `;
+      
+      const fragmentShader = `
+        varying vec2 vUv;
+        uniform float uIntensity;
+        uniform float uVerticalStretch;
+        uniform float uHorizontalWidth;
+        uniform float uFeather;
+        uniform float uAspectRatio;
+        
+        const int numStops = ${numStops};
+        uniform vec4 uGradientStops[${numStops}];
+        
+        void main() {
+          vec2 center = vec2(0.5, 0.5);
+          vec2 uv = vUv - center;
+          
+          uv.x *= uAspectRatio;
+          
+          float verticalFactor = uv.y / uVerticalStretch;
+          float horizontalFactor = uv.x / uHorizontalWidth;
+          
+          float ellipticalDist = sqrt(horizontalFactor * horizontalFactor + verticalFactor * verticalFactor);
+          float rectangularDist = max(abs(horizontalFactor), abs(verticalFactor));
+          float dist = mix(ellipticalDist, rectangularDist, 0.3);
+          
+          dist = smoothstep(0.0, 1.0 + uFeather, dist);
+          
+          vec3 color = vec3(0.0);
+          for(int i = 0; i < numStops - 1; i++) {
+            if(dist >= uGradientStops[i].w && dist <= uGradientStops[i+1].w) {
+              float t = (dist - uGradientStops[i].w) / (uGradientStops[i+1].w - uGradientStops[i].w);
+              color = mix(uGradientStops[i].xyz, uGradientStops[i+1].xyz, t);
+              break;
+            }
+          }
+          
+          if(dist < uGradientStops[0].w) {
+            color = uGradientStops[0].xyz;
+          } else if(dist > uGradientStops[numStops-1].w) {
+            color = uGradientStops[numStops-1].xyz;
+          }
+          
+          color *= uIntensity;
+          
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `;
+      
+      this.material = new THREE.ShaderMaterial({
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        uniforms: {
+          uIntensity: { value: this.options.intensity },
+          uVerticalStretch: { value: this.options.verticalStretch },
+          uHorizontalWidth: { value: this.options.horizontalWidth },
+          uFeather: { value: this.options.feather },
+          uAspectRatio: { value: this.options.aspectRatio },
+          uGradientStops: { value: gradientStopsArray }
+        }
+      });
+    }
+    
+    updateGradientStops(gradientColors, array) {
+      gradientColors.forEach((stop, index) => {
+        const rgb = this.hexToRGBNormalized(stop.color);
+        array[index * 4] = rgb.r;
+        array[index * 4 + 1] = rgb.g;
+        array[index * 4 + 2] = rgb.b;
+        array[index * 4 + 3] = stop.position;
+      });
+      return array;
+    }
+    
+    hexToRGBNormalized(hex) {
+      return {
+        r: parseInt(hex.slice(1, 3), 16) / 255,
+        g: parseInt(hex.slice(3, 5), 16) / 255,
+        b: parseInt(hex.slice(5, 7), 16) / 255
+      };
+    }
+    
+    onResize() {
+      const aspect = window.innerWidth / window.innerHeight;
+      
+      this.camera.left = -aspect;
+      this.camera.right = aspect;
+      this.camera.updateProjectionMatrix();
+      
+      this.mesh.geometry.dispose();
+      this.mesh.geometry = new THREE.PlaneGeometry(2 * aspect, 2);
+      
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    render() {
+      if (this.isDisposed) return;
+      this.renderer.render(this.scene, this.camera);
+    }
+    
+    updateColors(gradientColors) {
+      this.options.gradientColors = gradientColors;
+      
+      // Reuse the existing array instead of creating a new one
+      const gradientStopsArray = this.material.uniforms.uGradientStops.value;
+      this.updateGradientStops(gradientColors, gradientStopsArray);
+      
+      // Update the material
+      this.material.needsUpdate = true;
+    }
+    
+    setupDarkModeListener() {
+      this.darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      
+      this.darkModeHandler = (e) => {
+        this.isDarkMode = e.matches;
+        this.transitionToMode(this.isDarkMode ? 'dark' : 'light');
+      };
+      
+      this.darkModeMediaQuery.addEventListener('change', this.darkModeHandler);
+      this.isDarkMode = this.darkModeMediaQuery.matches;
+      
+      // Initial state
+      if (this.isDarkMode) {
+        this.updateColors(this.gradients.dark);
+      }
+    }
+    
+    transitionToMode(mode) {
+      const targetColors = this.gradients[mode];
+      const currentColors = this.options.gradientColors;
+      const duration = 2000; // 2 second transition
+      const startTime = Date.now();
+      
+      const animate = () => {
+        if (this.isDisposed) return;
+        
+        const elapsedTime = Date.now() - startTime;
+        const progress = Math.min(1, elapsedTime / duration);
+        
+        // Interpolate colors
+        const interpolatedColors = currentColors.map((currentStop, index) => {
+          const targetStop = targetColors[index];
+          return {
+            position: currentStop.position,
+            color: this.lerpColor(currentStop.color, targetStop.color, progress)
+          };
+        });
+        
+        this.updateColors(interpolatedColors);
+        
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+      
+      animate();
+    }
+    
+    lerpColor(color1, color2, factor) {
+      const hex1 = color1.startsWith('#') ? color1.substring(1) : color1;
+      const hex2 = color2.startsWith('#') ? color2.substring(1) : color2;
+      
+      const r1 = parseInt(hex1.substring(0, 2), 16);
+      const g1 = parseInt(hex1.substring(2, 4), 16);
+      const b1 = parseInt(hex1.substring(4, 6), 16);
+      
+      const r2 = parseInt(hex2.substring(0, 2), 16);
+      const g2 = parseInt(hex2.substring(2, 4), 16);
+      const b2 = parseInt(hex2.substring(4, 6), 16);
+      
+      const r = Math.round(r1 + factor * (r2 - r1));
+      const g = Math.round(g1 + factor * (g2 - g1));
+      const b = Math.round(b1 + factor * (b2 - b1));
+      
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
+    
+    // Comprehensive cleanup method
+    dispose() {
+      this.isDisposed = true;
+      
+      // Stop animation loop
+      this.renderer.setAnimationLoop(null);
+      
+      // Remove event listeners
+      window.removeEventListener('resize', this.resizeHandler);
+      
+      if (this.darkModeMediaQuery && this.darkModeHandler) {
+        this.darkModeMediaQuery.removeEventListener('change', this.darkModeHandler);
+      }
+      
+      // Dispose Three.js resources
+      if (this.mesh) {
+        this.mesh.geometry.dispose();
+      }
+      
+      if (this.material) {
+        this.material.dispose();
+      }
+      
+      if (this.renderer) {
+        this.renderer.dispose();
+      }
+      
+      // Remove canvas from DOM
+      if (this.renderer && this.renderer.domElement && this.renderer.domElement.parentElement) {
+        this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
+      }
+    }
+  }
+
+  // Initialize the gradient with optional props
+  const container = document.getElementById('gradient-container');
+  const gradient = new GradientLightField(
+    container,
+    palettes ?? defaultGradients,
+    darkMode
+  );
+  
+  // Expose API to window for manual control if needed
+  window.gradientLightField = gradient;
+  
+  // Clean up on page unload
+  window.addEventListener('beforeunload', () => {
+    gradient.dispose();
+  });
+</script>
+
+<style>
+  .gradient-container {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+</style>
