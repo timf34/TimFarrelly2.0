@@ -4,46 +4,33 @@
 
 <div id="gradient-container" class="gradient-container"></div>
 
-<script>
-  import * as THREE from 'three';
-
-  // Make the THREE object available to the client script
-  const threeLib = THREE;
-
-  // Export the THREE object for the client script
-  export { threeLib };
-</script>
-
-<script is:inline define:vars={{ palettes: {
-  yellowy: [
-    { position: 0.0, color: '#F5E48E' },
-    { position: 0.3, color: '#FFCB8E' },
-    { position: 0.6, color: '#FFAA88' },
-    { position: 0.8, color: '#FF88AA' }
-  ],
-  peachy: [
-    { position: 0.0, color: '#FFFFFF' },
-    { position: 0.3, color: '#FFC0AB' },
-    { position: 0.6, color: '#FFAA88' },
-    { position: 0.8, color: '#FF9999' }
-  ]
-}}}>
-  // Using UMD version to avoid module import issues
+<script is:inline>
+  // Load Three.js from CDN
   document.addEventListener('DOMContentLoaded', () => {
-    // Dynamically load Three.js from CDN
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
     script.onload = initGradient;
     document.head.appendChild(script);
 
     function initGradient() {
-      // Now THREE is available as a global variable
-      /********************************************************************
-       * 2.  GradientLightField  (keyboard & dark-mode stripped)
-       ********************************************************************/
+      // Static palettes
+      const palettes = {
+        yellowy: [
+          { position: 0.0, color: '#F5E48E' },
+          { position: 0.3, color: '#FFCB8E' },
+          { position: 0.6, color: '#FFAA88' },
+          { position: 0.8, color: '#FF88AA' }
+        ],
+        peachy: [
+          { position: 0.0, color: '#FFFFFF' },
+          { position: 0.3, color: '#FFC0AB' },
+          { position: 0.6, color: '#FFAA88' },
+          { position: 0.8, color: '#FF9999' }
+        ]
+      };
+
       class GradientLightField {
         constructor(container) {
-          /* ---------- options identical to the old script --------------- */
           this.options = {
             container,
             gradientColors: palettes.yellowy,
@@ -54,14 +41,11 @@
             intensity: 1.1
           };
 
-          this.scene = this.camera = this.renderer =
-            this.mesh = this.material = null;
-
+          this.scene = this.camera = this.renderer = this.mesh = this.material = null;
           this.isDisposed = false;
           this.init();
         }
 
-        /* ---------- init ------------------------------------------------ */
         init() {
           const aspect = window.innerWidth / window.innerHeight;
 
@@ -85,10 +69,9 @@
           window.addEventListener('resize', () => this.onResize());
 
           this.renderer.setAnimationLoop(() => this.renderer.render(this.scene, this.camera));
-          this.startColourCycle(); // yellowy ↔ peachy forever
+          this.startColourCycle();
         }
 
-        /* ---------- shader --------------------------------------------- */
         createMaterial() {
           const stops = new Float32Array(this.options.gradientColors.length * 4);
           this.writeStops(this.options.gradientColors, stops);
@@ -103,9 +86,8 @@
             varying vec2 vUv;
             uniform float uIntensity, uVerticalStretch, uHorizontalWidth, uFeather, uAspectRatio, uDithering, uTime;
             const int numStops = ${numStops};
-            uniform vec4 uGradientStops[numStops];
+            uniform vec4 uGradientStops[${numStops}];
 
-            /* dithering helpers kept from original (uDithering is 0 so effect off) */
             float random(vec2 st){return fract(sin(dot(st,vec2(12.9898,78.233)))*43758.5453123);}
             float bayer(vec2 p){int x=int(mod(p.x,4.));int y=int(mod(p.y,4.));
               float[16] m=float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.);
@@ -157,13 +139,13 @@
           });
         }
 
-        /* ---------- helpers ------------------------------------------- */
         writeStops(src, dst) {
           src.forEach((s, i) => {
             const { r, g, b } = this.hexRgb(s.color);
             dst.set([r, g, b, s.position], i * 4);
           });
         }
+
         hexRgb(h) {
           return {
             r: parseInt(h.slice(1, 3), 16) / 255,
@@ -171,9 +153,10 @@
             b: parseInt(h.slice(5, 7), 16) / 255
           };
         }
-        lerpColor(a, b, t) {                      // hex-string → hex-string lerp
-          const toInt = h => parseInt(h, 16),
-            ah = a.slice(1), bh = b.slice(1);
+
+        lerpColor(a, b, t) {
+          const toInt = h => parseInt(h, 16);
+          const ah = a.slice(1), bh = b.slice(1);
           const ar = toInt(ah.substr(0, 2)), ag = toInt(ah.substr(2, 2)), ab = toInt(ah.substr(4, 2));
           const br = toInt(bh.substr(0, 2)), bg = toInt(bh.substr(2, 2)), bb = toInt(bh.substr(4, 2));
           const rr = Math.round(ar + (br - ar) * t), rg = Math.round(ag + (bg - ag) * t), rb = Math.round(ab + (bb - ab) * t);
@@ -181,7 +164,6 @@
           return `#${h(rr)}${h(rg)}${h(rb)}`;
         }
 
-        /* ---------- resize & colour update ---------------------------- */
         onResize() {
           const a = window.innerWidth / window.innerHeight;
           this.camera.left = -a; this.camera.right = a; this.camera.updateProjectionMatrix();
@@ -189,13 +171,13 @@
           this.mesh.geometry = new THREE.PlaneGeometry(2 * a, 2);
           this.renderer.setSize(window.innerWidth, window.innerHeight);
         }
+
         updateColors(arr) {
           this.options.gradientColors = arr;
           this.writeStops(arr, this.material.uniforms.uGradientStops.value);
           this.material.uniforms.uGradientStops.needsUpdate = true;
         }
 
-        /* ---------- endless palette cycle ---------------------------- */
         cycle = { 'order': ['yellowy', 'peachy'], idx: 0, dur: 3000, pause: 2000 };
         startColourCycle() {
           const from = palettes[this.cycle.order[this.cycle.idx]];
@@ -216,7 +198,6 @@
           requestAnimationFrame(step);
         }
 
-        /* ---------- dispose (if ever needed) -------------------------- */
         dispose() {
           this.isDisposed = true;
           this.renderer.setAnimationLoop(null);
@@ -227,9 +208,7 @@
         }
       }
 
-      /********************************************************************
-       * 3.  Bootstrap once the DOM is ready
-       ********************************************************************/
+      // Initialize once the DOM is ready
       new GradientLightField(document.getElementById('gradient-container'));
     }
   });
