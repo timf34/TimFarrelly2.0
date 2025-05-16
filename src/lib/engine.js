@@ -48,17 +48,19 @@ export class TurrellBackground {
     window.addEventListener('resize', this.#onResize);
 
     /*--- shader ---*/
+    const maxR = Math.hypot(0.5 * (1 + aspectFix), 0.5);
     const frag = /* glsl */`
       precision highp float;
       varying vec2 vUv;
       uniform float uMix, uFeather, uAspectFix, uIntensity;
+      uniform float uMaxR;
       uniform vec4  uStopsA[${maxStops}];
       uniform vec4  uStopsB[${maxStops}];
 
       float distField(vec2 p){
         p -= .5;
         p.x *= 1. + uAspectFix;
-        return length(p);
+        return length(p) / uMaxR;   // 0.0 →  centre , 1.0 → outermost reachable pixel
       }
 
       vec3 paletteSample(float d,const vec4 arr[${maxStops}]){
@@ -91,6 +93,7 @@ export class TurrellBackground {
         uFeather: { value: feather },
         uAspectFix: { value: aspectFix },
         uIntensity: { value: intensity },
+        uMaxR: { value: maxR },
         uStopsA: { value: buildStops(sequence[0].stops, maxStops) },
         uStopsB: { value: buildStops(sequence[1 % sequence.length].stops, maxStops) }
       }

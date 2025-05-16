@@ -2,9 +2,9 @@
 	{
 	  "stops": [
 		{ "distance": 0.0, "colour": "#F5E48E" },
-		{ "distance": 0.2, "colour": "#FFCB8E" },
-		{ "distance": 0.3, "colour": "#FFAA88" },
-		{ "distance": 0.4, "colour": "#FF88AA" }  
+		{ "distance": 0.3, "colour": "#FFCB8E" },
+		{ "distance": 0.6, "colour": "#FFAA88" },
+		{ "distance": 0.8, "colour": "#FF88AA" }  
 	  ],
 	  "fade": 10000,
 	  "hold": 4000
@@ -12,9 +12,9 @@
 	{
 	  "stops": [
 		{ "distance": 0.0, "colour": "#FFFFFF" },
-		{ "distance": 0.1, "colour": "#FFC0AB" },
-		{ "distance": 0.2, "colour": "#FFAA88" },
-		{ "distance": 0.3, "colour": "#FF9999" }
+		{ "distance": 0.3, "colour": "#FFC0AB" },
+		{ "distance": 0.6, "colour": "#FFAA88" },
+		{ "distance": 0.8, "colour": "#FF9999" }
 	  ],
 	  "fade": 10000,
 	  "hold": 4000
