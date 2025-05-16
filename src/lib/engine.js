@@ -52,35 +52,45 @@ export class TurrellBackground {
     const frag = /* glsl */`
       precision highp float;
       varying vec2 vUv;
-      uniform float uMix, uFeather, uAspectFix, uIntensity;
-      uniform float uMaxR;
+
+      /* identical uniform list & names from the original shader */
+      uniform float uIntensity, uVerticalStretch, uHorizontalWidth,
+                    uFeather,   uAspectRatio,   uMix;
       uniform vec4  uStopsA[${maxStops}];
       uniform vec4  uStopsB[${maxStops}];
+      const int numStops = ${maxStops};
 
-      float distField(vec2 p){
-        p -= .5;
-        p.x *= 1. + uAspectFix;
-        return length(p) / uMaxR;   // 0.0 →  centre , 1.0 → outermost reachable pixel
-      }
-
-      vec3 paletteSample(float d,const vec4 arr[${maxStops}]){
-        vec3 c = arr[${maxStops-1}].rgb;
-        for(int i=${maxStops-1}; i>0; i--){
-          if(d < arr[i].a){
-            float t = smoothstep(arr[i-1].a, arr[i].a, d);
-            c = mix(arr[i-1].rgb, arr[i].rgb, t);
+      /* ------------------------------------------------------------------ */
+      vec3 samplePalette(float d,const vec4 s[numStops]){
+        vec3 col = vec3(0.0);
+        for(int i=0;i<numStops-1;i++){
+          if(d>=s[i].a && d<=s[i+1].a){
+            float t=(d-s[i].a)/(s[i+1].a-s[i].a);
+            col = mix(s[i].rgb,s[i+1].rgb,t);
           }
         }
-        return c;
+        if(d<s[0].a)            col = s[0].rgb;
+        if(d>s[numStops-1].a)   col = s[numStops-1].rgb;
+        return col;
       }
 
       void main(){
-        float d = smoothstep(0.,1.+uFeather, distField(vUv));
-        vec3 cA = paletteSample(d, uStopsA);
-        vec3 cB = paletteSample(d, uStopsB);
-        gl_FragColor = vec4(mix(cA,cB,uMix)*uIntensity, 1.);
+        vec2 uv = vUv - 0.5;          /* centre at (0,0) */
+        uv.x *= uAspectRatio;
+
+        float v    = uv.y / uVerticalStretch;
+        float h    = uv.x / uHorizontalWidth;
+        float dist = mix( length(vec2(h,v)), max(abs(h),abs(v)), 0.3 );
+        dist       = smoothstep(0.0, 1.0 + uFeather, dist);
+
+        vec3 colA = samplePalette(dist, uStopsA);
+        vec3 colB = samplePalette(dist, uStopsB);
+        vec3 col  = mix(colA, colB, uMix) * uIntensity;
+
+        gl_FragColor = vec4(col,1.0);
       }
     `;
+  
 
     const vert = 'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}';
 
@@ -90,10 +100,15 @@ export class TurrellBackground {
       transparent: true,
       uniforms: {
         uMix: { value: 0 },
-        uFeather: { value: feather },
-        uAspectFix: { value: aspectFix },
-        uIntensity: { value: intensity },
-        uMaxR: { value: maxR },
+    
+        // --- identical defaults to your legacy script ------------------
+        uIntensity       : { value: intensity },   // expose via constructor
+        uAspectRatio     : { value: 2.0 },         // <- was hard-coded before
+        uVerticalStretch : { value: 0.4 },
+        uHorizontalWidth : { value: 0.8 },
+        uFeather         : { value: 0.6 },
+    
+        // --- colour data -----------------------------------------------
         uStopsA: { value: buildStops(sequence[0].stops, maxStops) },
         uStopsB: { value: buildStops(sequence[1 % sequence.length].stops, maxStops) }
       }
