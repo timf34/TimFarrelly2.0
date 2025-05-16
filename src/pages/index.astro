@@ -1,11 +1,18 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import GradientCanvas from '../components/GradientCanvas.astro';
 ---
 
-<Layout title="Gradient Light Field Demo">
-  <GradientCanvas />
+<Layout title="Turrell glow">
+  <!-- custom element in the markup -->
+  <turrell-glow src="/sequence.json"></turrell-glow>
 
+  <main style="position:relative;z-index:1;padding:2rem;text-align:center">
+    <h1>James Turrell inspired site</h1>
+    <p>Edit <code>public/sequence.json</code> to change the ambience.</p>
+  </main>
+
+  <!-- 🚀 loads *after* the first paint, browser-only -->
+  <script type="module" src="src/lib/turrell-glow.js"></script>
 </Layout>
 
 <style>
@@ -24,5 +31,11 @@ import GradientCanvas from '../components/GradientCanvas.astro';
   p {
     font-size: 1.2rem;
     opacity: 0.8;
+  }
+  .gradient-container{
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    pointer-events:none;
   }
 </style>
