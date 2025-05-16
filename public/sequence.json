@@ -1,14 +1,20 @@
 [
 	{
 	  "stops": [
-		{ "distance": 0.0, "colour": "#F5E48E" },
-		{ "distance": 0.3, "colour": "#FFCB8E" },
-		{ "distance": 0.6, "colour": "#FFAA88" },
-		{ "distance": 0.8, "colour": "#FF88AA" }  
+		{ "distance": 0.0, "colour": "#FFFFFF" },
+		{ "distance": 0.3, "colour": "#FFCB8E" }
 	  ],
 	  "fade": 10000,
 	  "hold": 4000
 	},
+	{
+		"stops": [
+		  { "distance": 0.0, "colour": "#FFFFFF" },
+		  { "distance": 0.3, "colour": "#FFCB8E" }
+		],
+		"fade": 10000,
+		"hold": 4000
+	  },
 	{
 	  "stops": [
 		{ "distance": 0.0, "colour": "#FFFFFF" },
@@ -18,6 +24,16 @@
 	  ],
 	  "fade": 10000,
 	  "hold": 4000
-	}
+	},
+	{
+		"stops": [
+		  { "distance": 0.0, "colour": "#8080ff" },
+		  { "distance": 0.5, "colour": "#FFC0AB" },
+		  { "distance": 0.7, "colour": "#FFAA88" },
+		  { "distance": 0.8, "colour": "#FF9999" }
+		],
+		"fade": 10000,
+		"hold": 4000
+	  }
   ]
   
