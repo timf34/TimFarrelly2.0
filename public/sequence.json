@@ -1,8 +1,15 @@
 [
 	{
+		"stops": [
+		  { "distance": 0.0, "colour": "#FFFFFF" }
+		],
+		"fade": 10000,
+		"hold": 2000
+	  },
+	{
 	  "stops": [
 		{ "distance": 0.0, "colour": "#FFFFFF" },
-		{ "distance": 0.3, "colour": "#FFCB8E" }
+		{ "distance": 0.3, "colour": "#e38eff" }
 	  ],
 	  "fade": 10000,
 	  "hold": 4000
